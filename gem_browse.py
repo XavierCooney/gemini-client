@@ -24,7 +24,7 @@ class Page:
         if toc_of is None:
             seperator = '\n' if '\r\n' not in self.body else '\r\n'
             sanitised_body = ''.join(
-                c if ord(c) >= 32 or c in '\r\n' else f'\\x{ord(c):02x}'
+                c if ord(c) >= 32 or c in '\r\n' else (f'\\x{ord(c):02x}' if c != '\t' else '    ')
                 for c in self.body
             )
             self.input_lines = sanitised_body.split(seperator)
@@ -42,11 +42,11 @@ class Page:
     def find_toc_lines(self) -> Tuple[List[str], List[int]]:
         assert self.toc_of
 
-        toc_lines: List[str] = []
+        toc_lines: List[str] = ['# Table of Contents', '']
         header_positions: List[int] = []
         for i, line in enumerate(self.toc_of.input_lines):
             if line.startswith('#'):
-                num = f'[{len(toc_lines) + 1}]'
+                num = f'[{len(header_positions) + 1}]'
                 toc_lines.append(f'{num:>5} {line}')
                 header_positions.append(i)
 
@@ -94,20 +94,33 @@ class Page:
             input_to_output_lines.append(len(output_lines) - 1)
 
             page_text_colour = theme.get_colour('page_text')
+            link_syntax_colour = theme.get_colour('link_syntax')
+            link_number_colour = theme.get_colour('link_number')
 
             if m := re.match(r'^=>[ \t]*([^\t ]+)[ \t]*(.*)$', input_line):
                 url, text = m.group(1), m.group(2)
                 if not text: text = url
                 self.links.append(url)
 
-                link_syntax_colour = theme.get_colour('link_syntax')
-                link_number_colour = theme.get_colour('link_number')
 
                 processed_line = ColouredString('', theme).join([
                     ColouredString('=> [', theme).apply_colour(link_syntax_colour),
                     ColouredString(str(len(self.links)), theme).apply_colour(link_number_colour),
                     ColouredString(']', theme).apply_colour(link_syntax_colour),
                     ColouredString(f': {text}', theme).apply_colour(page_text_colour),
+                ])
+            elif self.toc_of and (m := re.match(r'^( )*\[(\d+)\] (#+)(.*)$', input_line)):
+                whitespace, link_num, hashes, text = m.groups()
+
+                header_colour = theme.get_colour('h' + str(len(hashes)), 'header')
+
+                processed_line = ColouredString('', theme).join([
+                    ColouredString(whitespace, theme),
+                    ColouredString('[', theme).apply_colour(link_syntax_colour),
+                    ColouredString(link_num, theme).apply_colour(link_number_colour),
+                    ColouredString(']', theme).apply_colour(link_syntax_colour),
+                    ColouredString(' ', theme),
+                    ColouredString(f'{hashes}{text}', theme).apply_colour(header_colour),
                 ])
             elif m := re.match(r'^(#+)(.*)$', input_line):
                 level = len(m.group(1))
