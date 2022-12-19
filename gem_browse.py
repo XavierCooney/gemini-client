@@ -79,6 +79,8 @@ class Page:
         self.name = None
         self.prev_render_term_size = (term_cols, term_lines)
 
+        self.links = []
+
         term_cols -= PAGE_COL_SUBTRACT
         term_cols = max(term_cols, 5)
 
