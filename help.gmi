@@ -1,0 +1,53 @@
+# A page resembling possibly useful documentation
+
+Ok so this documentation isn't complete yet, but here goes.
+
+## (Some) commands
+
+&if_canon To run a command, type it out and then press enter to execute the command. Most prompts at the bottom of the screen can be dismissed by pressing enter without a command. Also, if you resize the terminal, hitting enter will re-render the screen.
+&if_raw To run a command, type the name of the command. Some one-character commands will be run immediately, while others will require you to hit enter. Most prompts at the bottom of the screen can be dismissed by pressing enter without a command. Also, if you resize the terminal, hitting enter will re-render the screen.
+
+* `u` for up.
+* `d` for down.
+&if_canon * Just hitting enter without a command or active prompt will go down by a single line rather than half a page.
+&if_raw * Or just use the arrow keys.
+* `q` (or just plain old C-c) to exit.
+* `g` or `go`, followed by a space then a URL, link number, or relative path to navigate to a specific address.
+* For page links, you can also just type the link number on it's own.
+* `i` is like `g`, but only shows where the provided address points to. Useful for checking where links on the page point to, as well as using `i .` to check the current address.
+* `t` to toggle 'table of contents mode', useful for jumping around big documents.
+* `b` or `back` to return to the previous web page.
+* `h` to toggle history mode.
+* `reload` or `refresh` to re-fetch the contents of a page to defeat the (incredibly agressive) page cachce.
+* `?` to travel to this page.
+
+## Customisation
+
+You can edit `theme.ini` to change colours and stuff. Supported attributes include:
+* bold
+* italic
+* underline
+* Strings matching the regex `(bright-)?(black|red|green|yellow|blue|magenta|cyan|white)-(foreground|background)`
+
+## Program options
+
+The following command line arguments are recognised:
+* --ascii
+* --no-colour
+* --no-raw
+
+## TODO
+
+Here's some stuff that I haven't done, and if I continue working on this project might get around to doing:
+* More theming of stuff
+* Supporting lists
+* Supporting preformatted text (```)
+* Supporting TOFU, rather than just trusting every certificate
+* Searching pages for text
+* Making the requests async, so they can be user-cancelled
+* Tabs???
+* Jumping to parts of the page (like goto line)
+* Making the page cache eventually drop old pages
+* Better TUI
+* Making mouse scrolling work?
+

@@ -1,0 +1,13 @@
+# xgem home
+
+&if_raw Welcome to yet another Gemini browser! Use the up and down arrow keys to scroll through this page.
+&if_canon Welcome to yet another Gemini browser! Press enter to scroll down through this page.
+
+If you'd like to read documentation about this browser, type 2<enter>, otherwise if you'd like to jump straight in type 1<enter>.
+
+## Some links
+
+=> gemini://gemini.circumlunar.space/ Project Gemini home
+=> internal://help How to use this browser
+=> gemini://geminispace.info/search Search Gemini
+=> gemini://egsam.glv.one/ Gemini browser test
