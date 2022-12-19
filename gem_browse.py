@@ -47,7 +47,7 @@ class Page:
         for i, line in enumerate(self.toc_of.input_lines):
             if line.startswith('#'):
                 num = f'[{len(header_positions) + 1}]'
-                toc_lines.append(f'{num:>5} {line}')
+                toc_lines.append(f'{num: >5} {line}')
                 header_positions.append(i)
 
         return toc_lines, header_positions
@@ -109,7 +109,7 @@ class Page:
                     ColouredString(']', theme).apply_colour(link_syntax_colour),
                     ColouredString(f': {text}', theme).apply_colour(page_text_colour),
                 ])
-            elif self.toc_of and (m := re.match(r'^( )*\[(\d+)\] (#+)(.*)$', input_line)):
+            elif self.toc_of and (m := re.match(r'^( *)\[(\d+)\] (#+)(.*)$', input_line)):
                 whitespace, link_num, hashes, text = m.groups()
 
                 header_colour = theme.get_colour('h' + str(len(hashes)), 'header')
