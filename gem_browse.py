@@ -104,7 +104,6 @@ class Page:
                 if not text: text = url
                 self.links.append(url)
 
-
                 processed_line = ColouredString('', theme).join([
                     ColouredString('=> [', theme).apply_colour(link_syntax_colour),
                     ColouredString(str(len(self.links)), theme).apply_colour(link_number_colour),
@@ -302,6 +301,10 @@ class Browser:
             self.page.scroll_up_half()
         elif command == 'd' and self.page:
             self.page.scroll_down_half()
+        elif command == 'j' and self.page:
+            self.page.scroll_up_1()
+        elif command == 'k' and self.page:
+            self.page.scroll_down_1()
         elif command == 'q':
             self.error_alert(['Bye!'])
             self.done = True
@@ -411,7 +414,7 @@ class Browser:
     def read_raw_char(self) -> None:
         ch = sys.stdin.read(1)
         normal_prompt = self.more_input_required is None and self.yes_no_prompt is None
-        quick_comands = ['u', 'd', 'h', 't']
+        quick_comands = ['u', 'd', 'h', 't', 'j', 'k']
         if ch in quick_comands and len(self.buffer) == 0 and normal_prompt:
             self.process_comand(ch)
             self.display()
