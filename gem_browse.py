@@ -5,12 +5,22 @@ import shutil
 import sys
 import urllib.parse
 import re
+import os
+from pathlib import Path
+import shutil
+import string
+import subprocess
+import shlex
+import webbrowser
 
-from gem_client import fetch_gem, GeminiError, GeminiResponse, TrustPolicy
+from gem_client import fetch_gem, fetch_gem_raw, GeminiError, GeminiResponse, TrustPolicy
 from colours import ColouredString, ColourContext, ThemeError
 
 PAGE_COL_SUBTRACT = 5
 PAGE_LINES_SUBTRACT = 2
+script_dir = Path(__file__).resolve().parent
+
+download_directory = script_dir / 'downloads' # should probably use XDG_DOWNLOAD_DIR instead
 
 class Page:
     def __init__(self, url: str, response: GeminiResponse, browser: 'Browser', toc_of: Optional['Page']):
@@ -22,10 +32,13 @@ class Page:
         self.toc_of = toc_of
 
         if toc_of is None:
-            seperator = '\n' if '\r\n' not in self.body else '\r\n'
+            seperator = '\n'
+            sanitised_body = self.body.replace('\r\n', '\n')
+            sanitised_body = sanitised_body.replace('\r', '')
+            sanitised_body = sanitised_body.replace('\t', '    ') # TODO: expand tabs better
             sanitised_body = ''.join(
-                c if ord(c) >= 32 or c in '\r\n' else (f'\\x{ord(c):02x}' if c != '\t' else '    ')
-                for c in self.body
+                c if ord(c) >= 32 or c in '\n' else f'\\x{ord(c):02x}'
+                for c in sanitised_body
             )
             self.input_lines = sanitised_body.split(seperator)
         else:
@@ -92,6 +105,8 @@ class Page:
 
         lines_to_render = self.input_lines
 
+        in_preformatted_mode = False
+
         for input_line_num, input_line in enumerate(lines_to_render):
             input_to_output_lines.append(len(output_lines) - 1)
 
@@ -99,12 +114,21 @@ class Page:
             link_syntax_colour = theme.get_colour('link_syntax')
             link_number_colour = theme.get_colour('link_number')
 
-            if m := re.match(r'^=>[ \t]*([^\t ]+)[ \t]*(.*)$', input_line):
+            if m := re.match(r'^```(.*)$', input_line):
+                in_preformatted_mode = not in_preformatted_mode
+                processed_line = ColouredString(input_line, theme).apply_colour(
+                    theme.get_colour('preformat_toggle')
+                )
+            elif in_preformatted_mode:
+                processed_line = ColouredString(input_line, theme).apply_colour(
+                    theme.get_colour('preformatted')
+                )
+            elif m := re.match(r'^=>[ \t]*([^\t ]+)[ \t]*(.*)$', input_line):
                 url, text = m.group(1), m.group(2)
                 if not text: text = url
                 self.links.append(url)
 
-                processed_line = ColouredString('', theme).join([
+                processed_line = empty_str.join([
                     ColouredString('=> [', theme).apply_colour(link_syntax_colour),
                     ColouredString(str(len(self.links)), theme).apply_colour(link_number_colour),
                     ColouredString(']', theme).apply_colour(link_syntax_colour),
@@ -115,7 +139,7 @@ class Page:
 
                 header_colour = theme.get_colour('h' + str(len(hashes)), 'header')
 
-                processed_line = ColouredString('', theme).join([
+                processed_line = empty_str.join([
                     ColouredString(whitespace, theme),
                     ColouredString('[', theme).apply_colour(link_syntax_colour),
                     ColouredString(link_num, theme).apply_colour(link_number_colour),
@@ -137,7 +161,7 @@ class Page:
             this_whitespace_prefix: List[ColouredString] = []
             this_word: List[ColouredString] = []
             for c in processed_line:
-                if c.raw() in ' \t':
+                if c.raw() in ' \t' and not in_preformatted_mode:
                     if this_word:
                         words.append((
                             empty_str.join(this_whitespace_prefix),
@@ -245,6 +269,14 @@ class Page:
         self.scroll_pos += self.half()
         self.clamp()
 
+    def scroll_to_top(self) -> None:
+        self.scroll_pos = 0
+        self.clamp()
+
+    def scroll_to_bot(self) -> None:
+        self.scroll_pos = len(self.lines) - self.half()
+        self.clamp()
+
     def clamp(self) -> None:
         self.scroll_pos = max(self.scroll_pos, 0)
         self.scroll_pos = min(self.scroll_pos, len(self.lines) - 1)
@@ -264,7 +296,7 @@ class Browser:
 
         self.use_unicode = use_unicode
         self.use_colour = use_colour
-        self.theme = ColourContext(self.use_colour, "theme.ini")
+        self.theme = ColourContext(self.use_colour, script_dir / "theme.ini")
 
     def process_comand(self, command: str) -> None:
         if self.more_input_required:
@@ -301,13 +333,27 @@ class Browser:
             self.page.scroll_up_half()
         elif command == 'd' and self.page:
             self.page.scroll_down_half()
-        elif command == 'j' and self.page:
-            self.page.scroll_up_1()
         elif command == 'k' and self.page:
+            self.page.scroll_up_1()
+        elif command == 'j' and self.page:
             self.page.scroll_down_1()
+        elif command == 'gg' and self.page:
+            self.page.scroll_to_top()
+        elif command == 'G' and self.page:
+            self.page.scroll_to_bot()
         elif command == 'q':
             self.error_alert(['Bye!'])
             self.done = True
+        elif cmd == 'save' and len(args) <= 1:
+            if len(args) == 0:
+                self.save_file('.')
+            else:
+                self.save_file(args[0])
+        elif cmd == 'save_raw' and len(args) <= 1:
+            if len(args) == 0:
+                self.save_file('.', raw=True)
+            else:
+                self.save_file(args[0], raw=True)
         elif command and 'history'.startswith(command):
             self.show_history()
         elif command == '?':
@@ -315,7 +361,7 @@ class Browser:
         elif command in ('t', 'toc', 'table') and self.page:
             self.page = self.page.toggle_toc()
         elif command == 'back' or command == 'b':
-            if len(self.history) < 2:
+            if len(self.history) <= 1:
                 self.error_alert(['Can\'t go back!'])
             else:
                 self.history.pop()
@@ -327,9 +373,9 @@ class Browser:
             if url is None: return
             self.go(url)
         elif cmd == 'i':
-            if len(args) != 1:
-                return self.error_alert(['The go command requires one arg'])
-            url = self.resolve_link(args[0], True)
+            if len(args) > 1:
+                return self.error_alert(['The i command requires at most one arg'])
+            url = self.resolve_link(args[0] if args else '.', True)
             if url is None: return
             self.error_alert(['URL:', url])
         elif re.match(r'^[0-9]+$', command):
@@ -345,6 +391,82 @@ class Browser:
             self.go(self.page.url)
         else:
             return self.error_alert(['Unknown command!'])
+
+    def save_file(self, link: str, raw: bool=False) -> None:
+        url = self.resolve_link(link, True)
+        if url is None:
+            return
+
+        is_internal = url.startswith('internal://')
+
+        self.error_alert(['Downloading...', url])
+        self.alert_lines = []
+
+        if not raw:
+            try:
+                if is_internal:
+                    response = self.fetch_browser_page(url)
+                else:
+                    response = fetch_gem(url, TrustPolicy())
+            except GeminiError as e:
+                return self.error_alert(['Error making request! ' + e.message])
+
+            body = response.body
+            if body is None:
+                return self.error_alert(['No response body to save (try save_raw).'])
+
+            data_to_save = body
+        else:
+            if is_internal:
+                return self.error_alert(['internal pages cannot be raw-saved, use `save` instead'])
+
+            try:
+                data_to_save = fetch_gem_raw(url, TrustPolicy())
+            except GeminiError as e:
+                return self.error_alert(['Error making request! ' + e.message])
+
+        allowed_filename_chars = set(string.ascii_letters + string.digits + '._')
+        filename = ''.join(
+            c if c in allowed_filename_chars else '_'
+            for c in (f'save_{url}' if not raw else f'raw_save_{url}')
+        )
+        download_directory.mkdir(parents=True, exist_ok=True)
+
+        path = download_directory / filename
+
+        try:
+            path.write_bytes(data_to_save)
+        except IOError as e:
+            return self.error_alert(['failed to save download to:', str(path), str(e)])
+
+        editor = os.environ.get('EDITOR', 'vim')
+        editor_path = shutil.which(editor)
+        if not editor_path:
+            return self.error_alert(['saved to', str(path), '(no $EDITOR)'])
+
+        def on_open_response(should_open: bool) -> None:
+            if should_open:
+                self.call_subprocess([editor_path, str(path)])
+            else:
+                return self.error_alert(['OK, still saved to', str(path)])
+
+        self.yes_no_prompt = ([f'Open with {editor}?'], on_open_response)
+
+    def call_subprocess(self, args: List[str]) -> None:
+        print('\r\n\nRunning')
+        print('\r$ ' + shlex.join(args))
+        completed_process = subprocess.run(args)
+
+        if self.has_term_control:
+            # assume that whatever command left us in raw mode
+            print('\r\n\nPress any key to continue\r')
+            sys.stdin.read(1)
+        else:
+            input('\r\n\nPress enter to continue')
+
+        self.error_alert([
+            f'{args[0]} exited with code {completed_process.returncode}'
+        ])
 
     def show_history(self) -> None:
         if self.page and self.page.url == 'internal://history':
@@ -388,6 +510,9 @@ class Browser:
 
     def resolve_link(self, link: str, from_user: bool=False) -> Optional[str]:
         if self.looks_like_url(link): # looks like a url
+            if link.startswith('//'):
+                link = f'gemini:{link}'
+
             return link
 
         if not self.page:
@@ -402,7 +527,7 @@ class Browser:
             links = self.page.links
             if 0 <= as_int < len(links) and from_user:
                 return self.resolve_link(links[as_int], False)
-            else:
+            elif from_user:
                 self.error_alert(['Invalid numeric link!'])
                 return None
 
@@ -449,7 +574,10 @@ class Browser:
                 self.display()
 
     def loop(self) -> None:
-        self.go('internal://home')
+        if len(sys.argv) == 2 and 'gemini://' in sys.argv[1]:
+            self.go(sys.argv[1])
+        else:
+            self.go('internal://home')
 
         self.buffer = []
         self.display()
@@ -489,7 +617,8 @@ class Browser:
             return GeminiResponse(59, 'Bad internal URL!', None)
 
         try:
-            with open(f'{name}.gmi', 'r', encoding='utf-8') as f:
+            path = script_dir / f'{name}.gmi'
+            with open(path, 'r', encoding='utf-8') as f:
                 content = f.read()
         except FileNotFoundError:
             return GeminiResponse(51, 'Unknown internal page', None)
@@ -517,7 +646,7 @@ class Browser:
         )
 
     def load_history(self) -> GeminiResponse:
-        response = ['# History', '']
+        response = ['# History', '  (use `h` to toggle)', '']
         for url, name in self.history[::-1]:
             if name:
                 response.append(f'=> {url} {name}')
@@ -528,7 +657,8 @@ class Browser:
             '\n'.join(response).encode('utf-8')
         )
 
-    def fetch_browser_page(self, suffix: str) -> GeminiResponse:
+    def fetch_browser_page(self, url: str) -> GeminiResponse:
+        suffix = url.removeprefix('internal://')
         if suffix == 'history':
             return self.load_history()
         else:
@@ -556,14 +686,16 @@ class Browser:
 
         try:
             if cached_page is None or override_cache:
+                cached_page = None
                 if url.startswith('internal://'):
-                    cached_page = None
-                    response = self.fetch_browser_page(url[len('internal://'):])
+                    response = self.fetch_browser_page(url)
                 else:
-                    cached_page = None
                     response = fetch_gem(url, TrustPolicy())
         except GeminiError as e:
-            return self.error_alert(['Error making request! ' + e.message])
+            if e.retry_in_browser:
+                return self.offer_web_browser_retry(url, e.message)
+            else:
+                return self.error_alert(['Error making request! ' + e.message])
 
         if cached_page is None:
             if response.broad_status() == 1:
@@ -597,10 +729,13 @@ class Browser:
             try:
                 mime, body = response.decoded_body_or_err()
             except GeminiError as e:
-                return self.error_alert(['Error decoding body! ' + e.message])
+                return self.error_alert([
+                    'Error decoding body! ' + e.message,
+                    'Try using `save` instead'
+                ])
 
             if not mime.startswith('text/'):
-                return self.error_alert(['Cannot handle MIME type ' + mime])
+                return self.error_alert(['Cannot handle MIME type ' + mime, 'Try using `save` instead'])
 
             self.page = Page(url, response, self, None)
         else:
@@ -614,6 +749,22 @@ class Browser:
                 self.history.append((self.page.url, self.page.name or ''))
         self.page_cache[url] = self.page
         self.display()
+
+    def offer_web_browser_retry(self, url: str, original_error: str) -> None:
+        def retry_with_web_browser(yes: bool) -> None:
+            if not yes:
+                return self.error_alert(['Ok.'])
+            try:
+                webbrowser.open(url)
+            except webbrowser.Error as e:
+                self.error_alert(['Error opening browser:', str(e)])
+            else:
+                self.error_alert(['Browser opened to', url])
+
+        self.yes_no_prompt = (
+            ['Error making request! ' + original_error, 'Retry with a web browser?'],
+            retry_with_web_browser
+        )
 
     def get_prompt_str(self) -> str:
         if self.more_input_required is not None:

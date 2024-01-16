@@ -13,13 +13,16 @@ Ok so this documentation isn't complete yet, but here goes.
 &if_raw * Or just use the arrow keys.
 * `q` (or just plain old C-c) to exit.
 * `g` or `go`, followed by a space then a URL, link number, or relative path to navigate to a specific address.
-* For page links, you can also just type the link number on it's own.
+* For page links, you can also just type the link number on its own.
 * `i` is like `g`, but only shows where the provided address points to. Useful for checking where links on the page point to, as well as using `i .` to check the current address.
 * `t` to toggle 'table of contents mode', useful for jumping around big documents.
 * `b` or `back` to return to the previous web page.
 * `h` to toggle history mode.
-* `reload` or `refresh` to re-fetch the contents of a page to defeat the (incredibly agressive) page cachce.
+* `reload` or `refresh` to re-fetch the contents of a page to defeat the (incredibly agressive) page cache.
 * `?` to travel to this page.
+* `save` to optionally followed by a URL or link number, to save a page to the 'downloads' directory and optionally open that page in an editor.
+* `save_raw` for the same functionality as `save`, except the header of the response is also saved (and non-body response can also be saved this way).
+* `gg` and `G` to travel to the beginning and end of the page respectively.
 
 ## Customisation
 
@@ -41,10 +44,8 @@ The following command line arguments are recognised:
 Here's some stuff that I haven't done, and if I continue working on this project might get around to doing:
 * More theming of stuff
 * Supporting lists
-* Supporting preformatted text (```)
 * Supporting TOFU, rather than just trusting every certificate
 * Searching pages for text
-* Making the requests async, so they can be user-cancelled
 * Tabs???
 * Jumping to parts of the page (like goto line)
 * Making the page cache eventually drop old pages

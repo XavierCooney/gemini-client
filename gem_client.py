@@ -10,8 +10,9 @@ DEFAULT_PORT = 1965
 DEFAULT_MAX_BYTES = 32 * 1024 * 1024 # 32 MB
 
 class GeminiError(Exception):
-    def __init__(self, message: str):
+    def __init__(self, message: str, retry_in_browser: bool=False):
         self.message = message
+        self.retry_in_browser = retry_in_browser
 
 @dataclass
 class GeminiResponse:
@@ -83,6 +84,8 @@ class GeminiResponse:
             'ebcdicatde': 'cp500', # i think...
             'utf16': 'utf_16',
             'utf32': 'utf_32',
+            'iso88591': 'latin-1',
+            'usascii': 'ascii',
         }
 
         try:
@@ -93,22 +96,22 @@ class GeminiResponse:
         try:
             return mime_type, self.body.decode(encoding)
         except UnicodeDecodeError:
-            raise GeminiError('Error decoding body')
+            raise GeminiError(f'Failed to decode body with {encoding}')
 
 class TrustPolicy:
     pass
 
-def fetch_gem(url: str, trust_policy: TrustPolicy, max_num_bytes: int=DEFAULT_MAX_BYTES) -> GeminiResponse:
+def fetch_gem_raw(url: str, trust_policy: TrustPolicy, max_num_bytes: int=DEFAULT_MAX_BYTES) -> bytes:
     parsed_url = urllib.parse.urlparse(url)
 
     host = parsed_url.hostname
     port = parsed_url.port or DEFAULT_PORT
 
     if not host:
-        raise GeminiError('Bad url')
+        raise GeminiError('Bad url', retry_in_browser=True)
 
     if parsed_url.scheme != 'gemini':
-        raise GeminiError('Unsupported protcol ' + parsed_url.scheme)
+        raise GeminiError('Unsupported protcol ' + parsed_url.scheme, retry_in_browser=True)
 
     if len(url) > 1024:
         raise GeminiError('Request url too long')
@@ -150,10 +153,18 @@ def fetch_gem(url: str, trust_policy: TrustPolicy, max_num_bytes: int=DEFAULT_MA
         raise GeminiError('Host error')
     except OSError:
         raise GeminiError('General OS error while fetching')
+    except KeyboardInterrupt:
+        raise GeminiError('Request interrupted')
 
 
     full_response = b''.join(all_data)
-    header, *body = full_response.split(b'\r\n', 2)
+
+    return full_response
+
+def fetch_gem(url: str, trust_policy: TrustPolicy, max_num_bytes: int=DEFAULT_MAX_BYTES) -> GeminiResponse:
+    full_response = fetch_gem_raw(url, trust_policy, max_num_bytes)
+
+    header, *body = full_response.split(b'\r\n', 1)
     header_match = re.match(r'^(\d\d) ?(.{0,1024})$', header.decode('utf-8'))
 
     if not header_match:
@@ -179,3 +190,4 @@ def fetch_gem(url: str, trust_policy: TrustPolicy, max_num_bytes: int=DEFAULT_MA
 if __name__ == '__main__':
     print(fetch_gem('gemini://gemini.circumlunar.space/docs/', TrustPolicy()))
     print(fetch_gem('gemini://geminispace.info/search', TrustPolicy()))
+    print(fetch_gem('gemini://gemini.thebackupbox.net/test/torture/', TrustPolicy()))

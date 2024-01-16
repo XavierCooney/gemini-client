@@ -1,5 +1,6 @@
 from typing import Union, List, Optional, Iterable, Dict
 import configparser
+from pathlib import Path
 
 StrOrColouredString = Union[str, 'ColouredString']
 
@@ -141,7 +142,7 @@ class ThemeError(Exception):
         self.msg = msg
 
 class ColourContext:
-    def __init__(self, do_colours: bool, theme_file: str):
+    def __init__(self, do_colours: bool, theme_file: Path):
         self.config = configparser.ConfigParser()
         self.config.read(theme_file)
         self.do_colours = do_colours

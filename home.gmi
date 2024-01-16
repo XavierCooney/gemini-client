@@ -9,5 +9,6 @@ If you'd like to read documentation about this browser, type 2<enter>, otherwise
 
 => gemini://gemini.circumlunar.space/ Project Gemini home
 => internal://help How to use this browser
+=> gemini://gemini.circumlunar.space/capcom/ CAPCOM aggregator
 => gemini://geminispace.info/search Search Gemini
-=> gemini://egsam.glv.one/ Gemini browser test
+=> gemini://egsam.glv.one/ Gemini browser test (currently offline)
